@@ -1,0 +1,63 @@
+name: Android build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: "버전 이름 (예: 1.0.0)"
+        required: true
+        default: "1.0.0"
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      HAS_KEY: ${{ secrets.KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install and sync
+        run: |
+          npm ci
+          npx cap sync android
+
+      - name: Restore signing key
+        if: env.HAS_KEY == 'true'
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > $RUNNER_TEMP/release.jks
+
+      - name: Build test APK and Play Store AAB
+        working-directory: android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: ${{ github.event.inputs.version_name || '1.0.0' }}
+          KEYSTORE_PATH: ${{ env.HAS_KEY == 'true' && format('{0}/release.jks', runner.temp) || '' }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug bundleRelease --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hsk4-test-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hsk4-playstore-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
