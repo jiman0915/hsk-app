@@ -355,7 +355,7 @@ function home(){
   };
   gear.onclick=()=>settingsSheet(false);
   if (!S.onboarded) settingsSheet(true);
-  const tg=document.getElementById('todayGo'); if(tg) tg.onclick=()=>learn({kind:'day',d:next});
+  const tg=document.getElementById('todayGo'); if(tg) tg.onclick=()=> nextSt.learned ? test({kind:'day',d:next}, dayWords(next)) : learn({kind:'day',d:next});
   let cnt = Math.min(20, pool.length);
   const segBtns = () => app.querySelectorAll('.seg button');
   app.querySelectorAll('[data-n]').forEach(b=>b.onclick=()=>{cnt=Math.min(+b.dataset.n,pool.length);cntIn.value='';cntIn.hidden=true;segBtns().forEach(x=>x.setAttribute('aria-pressed',x===b));});
