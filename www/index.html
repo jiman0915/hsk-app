@@ -207,6 +207,30 @@ h1{font-family:var(--f-disp);font-size:2rem;color:var(--jade);font-weight:700}
 .tile:disabled{opacity:.6}
 .alldays summary{text-align:center;color:var(--muted);font-size:.85rem;list-style:none}
 .alldays summary::-webkit-details-marker{display:none}
+
+/* 홈 v3 */
+.hhead{display:flex;justify-content:space-between;align-items:center;margin:6px 2px 14px}
+.hhead h1{margin:0;font-family:var(--f-body);font-size:1.45rem;font-weight:900;letter-spacing:-.03em;color:var(--ink)}
+.hhead .gear{color:var(--muted);font-size:1.35rem}
+.hcard{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:12px;box-shadow:0 1px 2px rgba(60,45,20,.04)}
+.today2{display:grid;gap:4px}
+.tlabel{font-size:.82rem;color:var(--muted);font-weight:500;display:flex;align-items:center;gap:8px}
+.streak{font-size:.75rem;font-weight:700;color:var(--jade);background:var(--jade-soft);padding:2px 8px;border-radius:99px}
+.tday{font-size:2.3rem;font-weight:900;letter-spacing:-.03em;line-height:1.15}
+.tsub{font-size:.85rem;color:var(--muted)}
+.tbar{height:6px;background:var(--paper);border-radius:3px;overflow:hidden;margin:10px 0 14px}.tbar i{display:block;height:100%;background:var(--jade);border-radius:3px;min-width:0}
+.rev2{display:grid;gap:12px}
+.btn.dark{background:var(--ink);border-color:var(--ink);color:#fff}
+.btn:disabled,.btn.dark:disabled,.btn.primary:disabled{opacity:1;background:var(--paper);border-color:var(--line);color:var(--muted);cursor:default}
+.seg button:disabled{opacity:1;color:var(--muted)}
+.tile2{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;gap:2px;min-height:112px;align-content:space-between;color:var(--ink);box-shadow:0 1px 2px rgba(60,45,20,.04)}
+.tile2 .k{font-weight:700}.tile2 .n{font-size:2rem;font-weight:900;line-height:1.1}.tile2 .n.bad{color:var(--bad)}.tile2 .n.acc{color:var(--jade)}
+.tile2 .s{font-size:.8rem;color:var(--muted)}
+.tile2:disabled{opacity:1;cursor:default}
+.rowbtn{width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left;color:var(--ink);margin-top:12px}
+.rowbtn span{display:grid;gap:2px}.rowbtn b{font-size:1rem}.rowbtn small{font-size:.8rem;color:var(--muted)}
+.rowbtn .ar{font-size:1.4rem;color:var(--muted)}
+.daysheet{text-align:left}.daysheet .sh{font-size:1.2rem;font-weight:800}
 </style>
 
 <div class="wrap" id="app"></div>
@@ -299,31 +323,36 @@ function home(){
   const nextSt = next<=NDAY ? dayInfo(next) : {};
   const streak = studyStreak();
   const ringPct = next<=NDAY ? Math.round(dayWords(next).filter(w=>LEARNED.has(w.id)).length/dayWords(next).length*100) : 100;
+  const doneDays = Array.from({length:NDAY},(_,i)=>i+1).filter(d=>dayInfo(d).best!=null).length;
   app.innerHTML = `
-    <div class="cover"><div class="ctop"><h1>HSK4 단어장</h1><button class="gear" id="gear" aria-label="설정">⚙</button></div>
-      <div class="cstat">외운 단어 ${LEARNED.size.toLocaleString()} / ${WORDS.length.toLocaleString()}${streak?` · 연속 ${streak}일째`:''}</div>
-      <div class="cbar"><i style="width:${Math.max(LEARNED.size?1.5:0, LEARNED.size/WORDS.length*100)}%"></i></div></div>
-    ${next<=NDAY ? `<div class="today">
-      <div class="ring" style="--p:${ringPct}"><span>${next}</span></div>
-      <div class="tt"><span class="tl">${nextSt.learned?'암기 끝 · 시험만 남았어':'오늘 할 차례'}</span><b>Day ${next} · ${dayWords(next).length}단어</b></div>
-      <button class="btn primary" id="todayGo">${nextSt.learned?'이어서':'시작'}</button></div>`
-      : `<div class="today"><div class="tt"><b>${NDAY} Day 완주!</b><span class="tl">누적 시험이랑 오답노트로 복습해</span></div></div>`}
-    <div class="rev">
+    <div class="hhead"><h1>HSK4 단어장</h1><button class="gear" id="gear" aria-label="설정">⚙</button></div>
+    ${next<=NDAY ? `<div class="hcard today2">
+      <div class="tlabel">${nextSt.learned?'암기 끝 · 시험만 남았어':'오늘 할 차례'}${streak?` <span class="streak">연속 ${streak}일째</span>`:''}</div>
+      <div class="tday">Day ${next}</div>
+      <div class="tsub">${dayWords(next).length}단어 · 외운 단어 ${LEARNED.size.toLocaleString()} / ${WORDS.length.toLocaleString()}</div>
+      <div class="tbar"><i style="width:${LEARNED.size/WORDS.length*100}%"></i></div>
+      <button class="btn primary wide" id="todayGo">${nextSt.learned?'시험 보러 가기':'오늘 단어 시작'}</button></div>`
+      : `<div class="hcard today2"><div class="tday">${NDAY} Day 완주!</div><div class="tsub">누적 시험이랑 오답노트로 복습해</div></div>`}
+    <div class="hcard rev2">
       <div class="revt"><b>누적 시험</b><span>${pool.length ? `지금까지 외운 ${pool.length}단어에서 출제` : 'Day 하나 끝내면 열려'}</span></div>
       <div class="seg" role="group" aria-label="문제 수">${[10,20,30,50].map(n=>`<button data-n="${n}" ${pool.length?'':'disabled'} aria-pressed="${n===20}">${n}</button>`).join('')}<button id="cntMine" ${pool.length?'':'disabled'} aria-pressed="false">직접</button></div>
       <input id="cntIn" class="cntin" type="number" min="1" max="${pool.length||1}" placeholder="문제 수 입력 (최대 ${pool.length})" aria-label="문제 수 직접 입력" hidden>
-      <button class="btn primary wide" id="revGo" ${pool.length?'':'disabled'}>시험 보기</button>
+      <button class="btn dark wide" id="revGo" ${pool.length?'':'disabled'}>시험 보기</button>
     </div>
     <div class="two">
-      <button class="tile bad" id="wrongGo" ${S.wrong.length?'':'disabled'}><b>오답노트</b><span class="n">${S.wrong.length}</span><small>다시 외우기 ›</small></button>
-      <button class="tile acc" id="savedGo" ${S.saved.length?'':'disabled'}><b>저장한 예문</b><span class="n">${S.saved.length}</span><small>모아보기 ›</small></button>
+      <button class="tile2" id="wrongGo" ${S.wrong.length?'':'disabled'}><span class="k">오답노트</span><span class="n bad">${S.wrong.length}</span><span class="s">${S.wrong.length?'다시 외우기 ›':'아직 없어'}</span></button>
+      <button class="tile2" id="savedGo" ${S.saved.length?'':'disabled'}><span class="k">저장한 예문</span><span class="n acc">${S.saved.length}</span><span class="s">${S.saved.length?'모아보기 ›':'아직 없어'}</span></button>
     </div>
-    <details class="alldays"><summary>Day 전체 보기 · 지난 Day 다시 하기 ›</summary>
-      ${sect(1, Math.min(n4end,NDAY), '신 4급 · 시험 잘 나오는 순서')}
-      ${sect(n4end+1, NDAY, '1~3급 기초 다지기')}
-    </details>
+    <button class="hcard rowbtn" id="allDays"><span><b>Day 전체 보기</b><small>${doneDays} / ${NDAY} Day 완료 · 지난 Day 다시 하기</small></span><span class="ar">›</span></button>
 `;
-  app.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>learn({kind:'day',d:+b.dataset.d}));
+  allDays.onclick=()=>{
+    closePop(); const el=document.createElement('div'); el.className='pop'; el.id='pop';
+    el.innerHTML=`<div class="sheet wsheet daysheet" role="dialog" aria-label="Day 전체"><button class="x" aria-label="닫기">×</button>
+      <div class="sh">Day 전체</div>${sect(1, Math.min(n4end,NDAY), '신 4급 · 시험 잘 나오는 순서')}${sect(n4end+1, NDAY, '1~3급 기초 다지기')}</div>`;
+    document.body.appendChild(el);
+    el.onclick=e=>{ if(e.target===el||e.target.classList.contains('x')) closePop(); };
+    el.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{ closePop(); learn({kind:'day',d:+b.dataset.d}); });
+  };
   gear.onclick=()=>settingsSheet(false);
   if (!S.onboarded) settingsSheet(true);
   const tg=document.getElementById('todayGo'); if(tg) tg.onclick=()=>learn({kind:'day',d:next});
