@@ -231,6 +231,9 @@ h1{font-family:var(--f-disp);font-size:2rem;color:var(--jade);font-weight:700}
 .rowbtn span{display:grid;gap:2px}.rowbtn b{font-size:1rem}.rowbtn small{font-size:.8rem;color:var(--muted)}
 .rowbtn .ar{font-size:1.4rem;color:var(--muted)}
 .daysheet{text-align:left}.daysheet .sh{font-size:1.2rem;font-weight:800}
+.qcard{position:relative}
+.pybtn{position:absolute;top:12px;right:12px;z-index:2;font-size:.8rem;font-weight:700;padding:6px 12px;border-radius:99px;border:1px solid var(--line);background:var(--surface);color:var(--muted)}
+.pybtn[aria-pressed="true"]{background:var(--jade-soft);border-color:transparent;color:var(--jade)}
 </style>
 
 <div class="wrap" id="app"></div>
@@ -583,12 +586,16 @@ function savedView(){
   window.scrollTo(0,0);
 }
 
+
+/* 뜻이 너무 비슷한 오답 보기 거르기 (예: 叫 '~에게 ~당하다' vs 让 '~에게 (~당하다)') */
+function bigrams(t){ t=String(t).replace(/[^가-힣a-z0-9]/gi,''); const g=new Set(); for(let i=0;i<t.length-1;i++) g.add(t.slice(i,i+2)); return g; }
+function tooSimilar(a,b){ const A=bigrams(a), B=bigrams(b); if(!A.size||!B.size) return false; let n=0; A.forEach(x=>{ if(B.has(x)) n++; }); return n/Math.min(A.size,B.size) >= 0.5; }
 /* ---------- 시험 ---------- */
 function test(set, words){
   lock(false);
   const title = set.kind==='day' ? `Day ${set.d}` : set.kind==='review' ? '누적' : '오답노트';
   const qs = shuffle(words.slice()).map(w=>{
-    const pool = shuffle(WORDS.filter(x=>x.id!==w.id && x.ko!==w.ko && x.w!==w.w));
+    const pool = shuffle(WORDS.filter(x=>x.id!==w.id && x.ko!==w.ko && x.w!==w.w && !tooSimilar(x.ko,w.ko)));
     const near = pool.filter(x=>x.k && w.k && x.k.split('·')[0]===w.k.split('·')[0]);
     const d = (near.length>=3?near:pool).slice(0,3);
     return {w, opts: shuffle([w,...d]), pick:null};
@@ -599,8 +606,9 @@ function test(set, words){
     app.innerHTML = `
       <div class="top"><button class="back" id="back" aria-label="홈으로">←</button><b>${title} 시험</b><span>${i+1} / ${qs.length}</span></div>
       <div class="bar"><i style="width:${i/qs.length*100}%"></i></div>
-      <div class="card">
-        <div class="tian" style="cursor:default;min-height:150px"><div class="han">${esc(q.w.w)}</div></div>
+      <div class="card qcard">
+        <button class="pybtn" id="pyBtn" aria-pressed="${!!q.py}">${q.py?'병음 숨기기':'병음 보기'}</button>
+        <div class="tian" style="cursor:default;min-height:150px;flex-direction:column;gap:6px"><div class="han">${esc(q.w.w)}</div>${q.py?`<div class="py">${esc(q.w.p)}</div>`:''}</div>
         <div class="opts">${q.opts.map((o,k)=>`<button class="opt" data-k="${k}" aria-pressed="${q.pick===k}">${esc(o.ko)}</button>`).join('')}</div>
         <div class="row">
           <button class="btn" id="prev" ${i===0?'disabled':''}>이전</button>
@@ -609,6 +617,7 @@ function test(set, words){
       </div>`;
     back.onclick=home;
     app.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{q.pick=+b.dataset.k;render();});
+    pyBtn.onclick=()=>{q.py=!q.py;render();};
     prev.onclick=()=>{i--;render();};
     next.onclick=()=>{ if(i<qs.length-1){i++;render();} else grade(); };
   }
