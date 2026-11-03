@@ -243,6 +243,17 @@ h1{font-family:var(--f-disp);font-size:2rem;color:var(--jade);font-weight:700}
 .qpy{position:absolute;top:26px;left:0;right:0;text-align:center;font-size:1.15rem}
 .pybtn{position:absolute;top:12px;right:12px;z-index:2;font-size:.8rem;font-weight:700;padding:6px 12px;border-radius:99px;border:1px solid var(--line);background:var(--surface);color:var(--muted)}
 .pybtn[aria-pressed="true"]{background:var(--jade-soft);border-color:transparent;color:var(--jade)}
+
+.xtag{position:absolute;top:18px;left:60px;z-index:2;font-size:.75rem;font-weight:800;color:#b45309;background:#fff4d6;border:1px solid #fde3a7;padding:4px 10px;border-radius:99px}
+/* 획순 팝업: 한 화면, 가운데 */
+.wsheet .x{position:sticky;top:0;justify-self:end;margin-bottom:-36px;z-index:3;background:var(--surface);border-radius:50%}
+.sheet.writing .hj,.sheet.writing .pwhy,.sheet.writing .pm{display:none}
+.wslot{justify-items:center}
+.wslot .wlabel{text-align:center;width:100%}
+.wrow{justify-content:center}
+.wbox.small{width:100px;height:100px}
+.wbox.big{width:220px;height:220px}
+.sheet.writing{gap:10px;padding-top:16px}
 </style>
 
 <div class="wrap" id="app"></div>
@@ -264,10 +275,15 @@ if (S.days && Object.keys(S.days).length && !S.migrated){
   S.migrated = true; if (!S.job) { S.job='factory'; S.onboarded=true; }
 }
 let PER = [10,15,20,30,50].includes(+S.per) ? +S.per : 20;
-let NDAY = Math.ceil(WORDS.length / PER);
+let WPD = PER - 2;                       /* 하루 = 단어 (PER-2)개 + 신조어·표현 2개 */
+let NDAY = Math.ceil(WORDS.length / WPD);
+/* 신조어·재밌는 표현을 단어처럼 다룰 수 있게 변환 */
+const XWORDS = EXPR.flatMap((pair,di)=>pair.map((x,j)=>({id:100000+di*2+j, w:x.x, p:x.py, ko:x.ko, k:'', why:x.why, ex:[x.ex], isX:true, tag:j===0?'신조어':'재밌는 표현'})));
+XWORDS.forEach(x=>byId[x.id]=x);
+const dayX = d => { if(!XWORDS.length) return []; const i=((d-1)*2)%XWORDS.length; return [XWORDS[i], XWORDS[(i+1)%XWORDS.length]]; };
 const LEARNED = new Set(S.learned);
 const dayKey = d => PER+'_'+d;
-const dayInfo = d => { const ws = WORDS.slice((d-1)*PER, d*PER); const best = S.scores[dayKey(d)];
+const dayInfo = d => { const ws = dayWords(d); const best = S.scores[dayKey(d)];
   return { learned: ws.length>0 && ws.every(w=>LEARNED.has(w.id)), best: best==null?null:best }; };
 const exprFor = d => EXPR.length ? (EXPR[(d-1)%EXPR.length]||[]) : [];
 const todayStr = (o=0) => { const d=new Date(Date.now()-o*864e5); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
@@ -279,6 +295,7 @@ S.saved = S.saved.map(k=> typeof k==='number' ? k+':0' : String(k));
 const JOBS = {office:'사무직', student:'학생', service:'서비스·판매', factory:'생산·엔지니어'};
 /* 예문 슬롯: 내 상황(직업) → 자주 쓰는 구문 → 연인/가족·친구 → 다른 예문 */
 function exSlots(w){
+  if (w.isX) return (w.ex||[]).filter(x=>x&&x.zh).map(x=>({k:'job', tag:'예문', next:'', x}));
   const ex = Array.isArray(w.ex) ? w.ex : (w.ex ? [w.ex] : []), px = w.px || {};
   const job = px[S.job] || px.office || ex[0];
   const rel = S.partner ? px.partner : px.daily;
@@ -299,7 +316,7 @@ function toggleSave(k){ if (isSaved(k)) S.saved = S.saved.filter(x=>x!==k); else
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} };
 const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]} return a; };
-const dayWords = d => WORDS.slice((d-1)*PER, d*PER);
+function dayWords(d){ return WORDS.slice((d-1)*WPD, d*WPD).concat(dayX(d)); }
 const app = document.getElementById('app');
 const lock = on => document.documentElement.classList.toggle('locked', !!on);
 function toast(t){const el=document.getElementById('toast');el.textContent=t;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),1600);}
@@ -328,8 +345,10 @@ function home(){
     const label = st.best!=null ? `시험 ${st.best}/${dayWords(d).length}` : st.learned ? '암기 완료 · 시험 전' : (d===next?'오늘 할 차례':'시작 전');
     return `<button class="day ${cls}" data-d="${d}"><b>Day ${d}</b><small>${label}</small></button>`; };
   const sect = (a,b,t) => b>=a ? `<div class="sect">${t}</div><div class="days">${Array.from({length:b-a+1},(_,i)=>tiles(a+i)).join('')}</div>` : '';
-  const n4end = Math.ceil(WORDS.filter(w=>w.g!=='o').length/PER);
-  const pool = WORDS.filter(w=>LEARNED.has(w.id));
+  const n4end = Math.ceil(WORDS.filter(w=>w.g!=='o').length/WPD);
+  const pool = WORDS.concat(XWORDS).filter(w=>LEARNED.has(w.id));
+  const learnedN = WORDS.filter(w=>LEARNED.has(w.id)).length;
+  const defN = pool.length>=20 ? 20 : pool.length;
   const learnedDays = Array.from({length:NDAY},(_,i)=>i+1).filter(d=>dayInfo(d).learned);
   const lastDay = learnedDays.length ? learnedDays[learnedDays.length-1] : 0;
   const nextSt = next<=NDAY ? dayInfo(next) : {};
@@ -341,13 +360,13 @@ function home(){
     ${next<=NDAY ? `<div class="hcard today2">
       <div class="tlabel">${nextSt.learned?'암기 끝 · 시험만 남았어':'오늘 할 차례'}${streak?` <span class="streak">연속 ${streak}일째</span>`:''}</div>
       <div class="tday">Day ${next}</div>
-      <div class="tsub">${dayWords(next).length}단어 · 외운 단어 ${LEARNED.size.toLocaleString()} / ${WORDS.length.toLocaleString()}</div>
-      <div class="tbar"><i style="width:${LEARNED.size/WORDS.length*100}%"></i></div>
+      <div class="tsub">${dayWords(next).length}단어 · 외운 단어 ${learnedN.toLocaleString()} / ${WORDS.length.toLocaleString()}</div>
+      <div class="tbar"><i style="width:${learnedN/WORDS.length*100}%"></i></div>
       <button class="btn primary wide" id="todayGo">${nextSt.learned?'시험 보러 가기':'오늘 단어 시작'}</button></div>`
       : `<div class="hcard today2"><div class="tday">${NDAY} Day 완주!</div><div class="tsub">누적 시험이랑 오답노트로 복습해</div></div>`}
     <div class="hcard rev2">
       <div class="revt"><b>누적 시험</b><span>${pool.length ? `지금까지 외운 ${pool.length}단어에서 출제` : 'Day 하나 끝내면 열려'}</span></div>
-      <div class="seg" role="group" aria-label="문제 수">${[10,20,30,50].map(n=>`<button data-n="${n}" ${pool.length?'':'disabled'} aria-pressed="${n===20}">${n}</button>`).join('')}<button id="cntMine" ${pool.length?'':'disabled'} aria-pressed="false">직접</button></div>
+      <div class="seg" role="group" aria-label="문제 수">${[10,20,30].map(n=>`<button data-n="${n}" ${pool.length>=n?'':'disabled'} aria-pressed="${n===defN}">${n}</button>`).join('')}<button id="cntMine" ${pool.length?'':'disabled'} aria-pressed="false">직접</button><button data-n="${pool.length}" id="cntAll" ${pool.length?'':'disabled'} aria-pressed="${defN===pool.length&&pool.length>0&&![10,20,30].includes(pool.length)}">전체</button></div>
       <input id="cntIn" class="cntin" type="number" min="1" max="${pool.length||1}" placeholder="문제 수 입력 (최대 ${pool.length})" aria-label="문제 수 직접 입력" hidden>
       <button class="btn dark wide" id="revGo" ${pool.length?'':'disabled'}>시험 보기</button>
     </div>
@@ -368,11 +387,11 @@ function home(){
   gear.onclick=()=>settingsSheet(false);
   if (!S.onboarded) settingsSheet(true);
   const tg=document.getElementById('todayGo'); if(tg) tg.onclick=()=> nextSt.learned ? test({kind:'day',d:next}, dayWords(next)) : learn({kind:'day',d:next});
-  let cnt = Math.min(20, pool.length);
+  let cnt = defN;
   const segBtns = () => app.querySelectorAll('.seg button');
   app.querySelectorAll('[data-n]').forEach(b=>b.onclick=()=>{cnt=Math.min(+b.dataset.n,pool.length);cntIn.value='';cntIn.hidden=true;segBtns().forEach(x=>x.setAttribute('aria-pressed',x===b));});
   cntMine.onclick=()=>{segBtns().forEach(x=>x.setAttribute('aria-pressed',x===cntMine));cntIn.hidden=false;cntIn.focus();};
-  cntIn.oninput=()=>{const v=parseInt(cntIn.value,10); if(v>0) cnt=Math.min(v,pool.length);};
+  cntIn.oninput=()=>{let v=parseInt(cntIn.value,10); if(v>pool.length){ v=pool.length; cntIn.value=v; toast(`최대 ${pool.length}문제까지야`); } if(v>0) cnt=v;};
   revGo.onclick=()=>{ if(!pool.length) return; test({kind:'review'}, shuffle(pool.slice()).slice(0,Math.max(1,cnt))); };
   document.getElementById('wrongGo').onclick=()=>learn({kind:'wrong'});
   document.getElementById('savedGo').onclick=savedView;
@@ -412,7 +431,7 @@ function settingsSheet(first){
     if(!job){ toast('직업을 골라줘'); return; }
     S.per=per; S.job=job; S.partner=partner; S.onboarded=true;
     if(partner){ const n=el.querySelector('#nm').value.trim(); S.name=n||DEF_NAME[0]; S.namePy=el.querySelector('#nmp').value.trim(); S.nameKo=el.querySelector('#nmk').value.trim(); }
-    PER=per; NDAY=Math.ceil(WORDS.length/PER); save(); closePop(); home(); toast('저장했어');
+    PER=per; WPD=PER-2; NDAY=Math.ceil(WORDS.length/WPD); save(); closePop(); home(); toast('저장했어');
   };
   const bc=el.querySelector('#bc'); if(bc) bc.onclick=async()=>{const t=el.querySelector('#bk');try{await navigator.clipboard.writeText(t.value);toast('복사했어');}catch(e){t.select();toast('선택해놨어, 직접 복사해');}};
   const bl=el.querySelector('#bl'); if(bl) bl.onclick=()=>{try{const o=JSON.parse(el.querySelector('#bk').value);if(!o||typeof o!=='object')throw 0;localStorage.setItem(KEY,JSON.stringify(o));location.reload();}catch(e){toast('코드 형식이 안 맞아');}};
@@ -461,6 +480,7 @@ function learn(set){
       <div class="card study">
         <button class="nav l" id="prevW" aria-label="이전 단어" ${hist.length?'':'disabled'}>‹</button>
         <button class="nav r" id="nextW" aria-label="다음 단어" ${queue.length>1?'':'disabled'}>›</button>
+        ${w.isX?`<span class="xtag">${esc(w.tag)}</span>`:''}
         <div class="sbody ${shown?'open':''}">
         <div class="tian" id="flip" tabindex="0" aria-label="${shown?"한자 풀이 보기":"뜻 보기"}"><div class="han">${esc(w.w)}</div></div>
         ${shown ? `<div class="reveal">
@@ -516,11 +536,11 @@ function hanjaPop(w){
     <div class="hj">${(w.c||[]).map(c=>`<span><em>${esc(c[1]||c[0])}</em><i>${esc(c[2])}</i></span>`).join('')}</div>
     ${w.why?`<div class="pwhy">${esc(w.why)}</div>`:''}
     <div class="pm">${esc(w.ko)}</div>
-    <button class="writebtn" id="wOpen">✍ 획순 · 써보기</button>
+    ${w.isX?'':'<button class="writebtn" id="wOpen">✍ 획순 · 써보기</button>'}
     <div id="wslot" class="wslot" hidden></div></div>`;
   document.body.appendChild(el);
   el.onclick = e => { if (e.target===el || e.target.classList.contains('x')) closePop(); };
-  el.querySelector('#wOpen').onclick = e => { e.target.hidden=true; const sl=el.querySelector('#wslot'); sl.hidden=false; writePop(w, sl); sl.scrollIntoView({behavior:'smooth',block:'start'}); };
+  const wo = el.querySelector('#wOpen'); if (wo) wo.onclick = e => { el.querySelector('.sheet').classList.add('writing'); e.target.hidden=true; const sl=el.querySelector('#wslot'); sl.hidden=false; writePop(w, sl); };
 }
 function closePop(){ const p=document.getElementById('pop'); if(p) p.remove(); }
 
@@ -549,10 +569,10 @@ function writePop(w, el){
   function setup(){
     const c = chars[ci];
     el.querySelector('#hwAnim').innerHTML=''; el.querySelector('#hwQuiz').innerHTML=''; el.querySelector('#hwMsg').textContent='';
-    anim = HanziWriter.create('hwAnim', c, {width:120,height:120,padding:6,showOutline:true,strokeColor:col('--ink'),outlineColor:col('--line'),
+    anim = HanziWriter.create('hwAnim', c, {width:98,height:98,padding:6,showOutline:true,strokeColor:col('--ink'),outlineColor:col('--line'),
       strokeAnimationSpeed:1.2,delayBetweenStrokes:250,charDataLoader:loader});
     anim.animateCharacter();
-    quiz = HanziWriter.create('hwQuiz', c, {width:240,height:240,padding:10,showCharacter:false,showOutline:hint,
+    quiz = HanziWriter.create('hwQuiz', c, {width:218,height:218,padding:10,showCharacter:false,showOutline:hint,
       strokeColor:col('--jade'),outlineColor:col('--line'),drawingColor:col('--ink'),highlightColor:col('--mark'),drawingWidth:22,charDataLoader:loader});
     startQuiz();
   }
@@ -647,9 +667,7 @@ function test(set, words){
         ${wrong.length?`<div class="list">${wrong.map(q=>`<div class="li"><span class="w">${esc(q.w.w)}</span>
           <div class="d"><div>${esc(q.w.p)}</div><div>${esc(q.w.ko)}</div><div><s>${esc(q.opts[q.pick].ko)}</s></div></div></div>`).join('')}</div>`:''}
       </div>
-      ${set.kind==='day' && (exprFor(set.d)||[]).length ? `
-        <div class="reward"><b>🎁 Day ${set.d} 끝낸 보상</b><span>오늘의 표현</span></div>
-        <div style="display:grid;gap:12px">${exprFor(set.d).map((x,i)=>exprCard(x, i===0?'신조어':'재밌는 표현')).join('')}</div>` : ''}
+
       <div class="row" style="margin-top:14px">
         ${wrong.length?`<button class="btn soft" id="rw">틀린 것만 다시 외우기</button>`:''}
         <button class="btn primary" id="hm">${set.kind==='day'&&set.d<NDAY?`Day ${set.d+1}로`:'홈으로'}</button>
